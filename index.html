@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hikari - Your AI Companion</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXmrfvuMyDuEXE8dNuvACR-tG8tOukAHo",
+            authDomain: "aichatbot-6c5ba.firebaseapp.com",
+            projectId: "aichatbot-6c5ba",
+            storageBucket: "aichatbot-6c5ba.firebasestorage.app",
+            messagingSenderId: "525595213968",
+            appId: "1:525595213968:web:aeb8776d3b4407ef7cd815",
+            measurementId: "G-SW8X6WGS6E"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        window.googleLogin = () => signInWithPopup(auth, provider).then((r) => updateUI(r.user)).catch(console.error);
+        
+        window.askLogout = () => document.getElementById('logout-modal').classList.remove('hidden');
+        window.closeModal = () => document.getElementById('logout-modal').classList.add('hidden');
+
+        window.confirmLogout = () => {
+            signOut(auth).then(() => { 
+                if(window.audioPlayer) window.audioPlayer.pause(); 
+                const chatContainer = document.getElementById('chat-messages');
+                chatContainer.innerHTML = `
+                    <div class="flex justify-start">
+                        <div class="bg-gray-800 text-gray-200 rounded-2xl rounded-bl-none py-3 px-5 max-w-[85%] md:max-w-[70%] shadow-md border border-gray-700">
+                            Hey! I'm Hikari. 🌸<br>I'm here to listen. How are you feeling?
+                        </div>
+                    </div>
+                `;
+                updateUI(null); 
+                closeModal();
+            }); 
+        };
+
+        window.guestLogin = () => {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+            updateUI(null); 
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-screen').classList.remove('hidden');
+                updateUI(user);
+            }
+        });
+
+        window.updateUI = (user) => {
+            const userProfile = document.getElementById('user-profile');
+            const plannerOverlay = document.getElementById('planner-overlay-lock');
+            const plannerContent = document.getElementById('planner-content');
+
+            if (user) {
+                window.currentUserUID = user.uid;
+                userProfile.innerHTML = `<div class="flex items-center gap-3 w-full"><img src="${user.photoURL}" class="w-8 h-8 rounded-full border border-gray-600"><div class="flex-1 min-w-0"><p class="text-sm font-medium text-gray-300 truncate">${user.displayName}</p><button onclick="askLogout()" class="text-xs text-red-400 hover:text-red-300">Sign Out</button></div></div>`;
+                if(plannerOverlay) plannerOverlay.classList.add('hidden');
+                if(plannerContent) plannerContent.classList.remove('hidden');
+                if(window.loadUserSchedule) window.loadUserSchedule();
+                if (window.startComfortMusic) window.startComfortMusic();
+            } else {
+                window.currentUserUID = 'guest';
+                userProfile.innerHTML = `<div class="flex items-center gap-3 w-full"><div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center"><i class="fas fa-user text-gray-400 text-xs"></i></div><div class="flex-1"><p class="text-sm font-medium text-gray-400">Guest</p><button onclick="googleLogin()" class="text-xs text-blue-400 hover:text-blue-300">Sign In</button></div></div>`;
+                if(plannerOverlay) plannerOverlay.classList.remove('hidden');
+                if(plannerContent) plannerContent.classList.add('hidden');
+                if(window.loadUserSchedule) window.loadUserSchedule();
+                if (window.startComfortMusic) window.startComfortMusic();
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Nunito', sans-serif; }
+        
+        /* 💡 MOBILE FIX: Use dynamic viewport height to handle mobile address bars */
+        .h-dynamic-screen {
+            height: 100vh; /* Fallback */
+            height: 100dvh; /* Dynamic Viewport Height */
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 10px; }
+        
+        .glass-panel { background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .chat-bubble { animation: popIn 0.3s ease-out; }
+        @keyframes popIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .typing-dot { animation: typing 1.4s infinite ease-in-out both; background-color: #a0aec0; border-radius: 50%; height: 6px; width: 6px; display: inline-block; margin: 0 2px; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .breath-inhale { transform: scale(1.1); transition: transform 4s ease-in-out; }
+        .breath-hold { transform: scale(1.1); transition: transform 0s; } 
+        .breath-exhale { transform: scale(0.5); transition: transform 8s ease-in-out; }
+        
+        .bot-text-area { white-space: pre-wrap; list-style: none; padding-left: 0; }
+    </style>
+</head>
+<body class="bg-gray-900 h-dynamic-screen overflow-hidden relative text-gray-200 selection:bg-pink-500 selection:text-white">
+
+    <div id="logout-modal" class="hidden absolute inset-0 z-[90] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 transition-opacity">
+        <div class="bg-gray-800 border border-gray-600 p-6 rounded-2xl shadow-2xl max-w-xs w-full text-center">
+            <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fas fa-sign-out-alt text-red-500 text-xl"></i></div>
+            <h3 class="text-lg font-bold text-white mb-2">Sign Out?</h3>
+            <p class="text-gray-400 text-xs mb-6">Stops music and clears data.</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeModal()" class="px-5 py-2 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm">Cancel</button>
+                <button onclick="confirmLogout()" class="px-5 py-2 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="timetable-modal" class="hidden absolute inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-gray-800 border border-gray-600 p-6 rounded-2xl shadow-2xl max-w-xs w-full">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i class="fas fa-edit text-green-400"></i> Edit Slot</h3>
+            <input type="hidden" id="slot-id">
+            <div class="space-y-3">
+                <div><label class="text-[10px] text-gray-400 uppercase font-bold">Course / Activity</label><input type="text" id="course-name" class="w-full bg-black/40 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 focus:border-green-500 outline-none"></div>
+                <div><label class="text-[10px] text-gray-400 uppercase font-bold">Lecturer / Category</label><input type="text" id="course-lecturer" class="w-full bg-black/40 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 focus:border-green-500 outline-none"></div>
+                <div><label class="text-[10px] text-gray-400 uppercase font-bold">Venue</label><input type="text" id="course-venue" class="w-full bg-black/40 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 focus:border-green-500 outline-none"></div>
+            </div>
+            <div class="flex gap-3 justify-end mt-6">
+                <button onclick="closeTimetableModal()" class="px-4 py-2 text-gray-400 hover:text-white text-xs font-bold">Cancel</button>
+                <button onclick="saveTimetableSlot()" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg">Save</button>
+            </div>
+            <button onclick="deleteTimetableSlot()" class="w-full mt-2 text-red-400 hover:text-red-300 text-[10px] uppercase tracking-widest">Clear Slot</button>
+        </div>
+    </div>
+
+    <div id="breathe-widget" class="hidden absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-md transition-opacity">
+        <div class="relative bg-gray-800/50 border border-white/10 p-10 rounded-full w-[300px] h-[300px] flex flex-col items-center justify-center">
+            <button onclick="toggleBreatheWidget()" class="absolute top-0 right-0 -mt-6 -mr-6 text-gray-400 hover:text-white bg-gray-800 rounded-full w-10 h-10 flex items-center justify-center border border-gray-600"><i class="fas fa-times"></i></button>
+            <div id="breath-circle" class="absolute inset-0 bg-blue-500/20 rounded-full scale-50 transition-transform"></div>
+            <div id="breath-circle-inner" class="absolute w-3/4 h-3/4 bg-blue-400/10 rounded-full animate-pulse"></div>
+            <h2 id="breath-text" class="relative z-10 text-3xl font-bold text-blue-100 tracking-widest">READY</h2>
+            <p class="relative z-10 text-xs text-blue-300/70 mt-2 font-mono">4-7-8 Technique</p>
+        </div>
+    </div>
+
+    <div id="login-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 p-6">
+        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full border border-gray-700">
+            <div class="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl animate-bounce border-2 border-blue-500/30">🌸</div>
+            <h1 class="text-2xl font-bold text-white mb-2">Hikari</h1>
+            <p class="text-gray-400 mb-8 text-sm">Sign in to unlock DJ Mode, Timetable & Tools.</p>
+            <button onclick="googleLogin()" class="w-full flex items-center justify-center gap-3 bg-white text-gray-900 hover:bg-gray-100 font-semibold py-3 px-4 rounded-xl mb-3 shadow-lg"><i class="fab fa-google text-red-500"></i> Sign in with Google</button>
+            <button onclick="guestLogin()" class="w-full py-3 px-4 rounded-xl border border-gray-600 text-gray-400 hover:text-white text-sm">Continue as Guest</button>
+        </div>
+    </div>
+
+    <div id="app-screen" class="hidden flex h-full w-full max-w-7xl mx-auto bg-gray-900 md:my-0 relative">
+        
+        <aside class="hidden md:flex flex-col w-64 bg-gray-900 border-r border-gray-800 p-4 z-10 relative">
+            <div class="flex items-center gap-3 mb-8 px-2">
+                <div class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-xl border border-gray-700 text-pink-400">🌸</div>
+                <div><h2 class="font-bold text-white tracking-wide">Hikari</h2><p class="text-xs text-green-500 flex items-center gap-1">Online</p></div>
+            </div>
+            <nav class="flex-1 space-y-2">
+                <a href="#" class="flex items-center gap-3 px-4 py-3 bg-gray-800 text-white rounded-xl shadow-sm border border-gray-700 font-medium"><i class="fas fa-comment-alt text-blue-400"></i> Chat</a>
+            </nav>
+            
+            <div class="mb-6 px-2">
+                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3 pl-2">Wellness Tools</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="toggleMute()" id="sidebar-music-btn" class="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-xl flex items-center justify-center text-pink-400 border border-gray-700 transition-all hover:scale-105 shadow-lg" title="Toggle Music">
+                        <span class="fa-stack fa-lg">
+                            <i id="sidebar-music-icon-base" class="fas fa-music fa-stack-1x"></i>
+                            <i id="sidebar-music-icon-slash" class="fas fa-slash fa-stack-1x text-gray-400 hidden"></i>
+                        </span>
+                    </button>
+                    <button onclick="togglePlannerWidget()" class="w-12 h-12 bg-gray-800 hover:bg-green-900/20 rounded-xl flex items-center justify-center text-green-400 border border-gray-700 transition-all hover:scale-105 shadow-lg" title="Timetable"><i class="fas fa-calendar-alt text-lg"></i></button>
+                    <button onclick="toggleBreatheWidget()" class="w-12 h-12 bg-gray-800 hover:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-400 border border-gray-700 transition-all hover:scale-105 shadow-lg" title="Breathe"><i class="fas fa-wind text-lg"></i></button>
+                </div>
+            </div>
+            <div id="user-profile" class="pt-4 border-t border-gray-800"></div>
+        </aside>
+
+        <main class="flex-1 flex flex-col relative bg-gradient-to-b from-gray-900 to-gray-800">
+            <div class="md:hidden flex justify-between items-center p-4 border-b border-gray-800 bg-gray-900/90 backdrop-blur z-20">
+                <span class="font-bold text-white flex items-center gap-2"><span class="text-xl">🌸</span> Hikari</span>
+                <div class="flex gap-2">
+                    <button onclick="toggleMute()" class="text-pink-400 p-2 bg-gray-800 rounded-full border border-gray-700">
+                        <span class="fa-stack fa-sm">
+                            <i id="mobile-music-icon-base" class="fas fa-music fa-stack-1x"></i>
+                            <i id="mobile-music-icon-slash" class="fas fa-slash fa-stack-1x text-gray-400 hidden"></i>
+                        </span>
+                    </button>
+                    <button onclick="togglePlannerWidget()" class="text-green-400 p-2 bg-gray-800 rounded-full border border-gray-700"><i class="fas fa-calendar"></i></button>
+                    <button onclick="toggleBreatheWidget()" class="text-blue-400 p-2 bg-gray-800 rounded-full border border-gray-700"><i class="fas fa-wind"></i></button>
+                </div>
+            </div>
+
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth pb-32">
+                <div class="flex justify-start"><div class="bg-gray-800 text-gray-200 rounded-2xl rounded-bl-none py-3 px-5 max-w-[85%] md:max-w-[70%] shadow-md border border-gray-700">Hey! I'm Hikari. 🌸<br>I'm here to listen. How are you feeling?</div></div>
+            </div>
+
+            <div class="p-4 bg-gray-900 border-t border-gray-800 shrink-0">
+                <div class="max-w-3xl mx-auto relative">
+                    <input type="text" id="user-input" class="w-full bg-gray-800 border border-gray-700 text-white text-base rounded-full pl-6 pr-14 py-4 focus:outline-none focus:border-pink-500 shadow-lg placeholder-gray-500" placeholder="Type message..." onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button onclick="sendMessage()" class="absolute right-2 top-2 bottom-2 bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 shadow-md"><i class="fas fa-paper-plane text-sm"></i></button>
+                </div>
+            </div>
+        </main>
+        
+        <div id="planner-widget" class="hidden absolute bottom-20 left-4 z-50 w-[90%] md:w-[360px] h-[60vh] glass-panel rounded-[30px] shadow-2xl overflow-hidden flex flex-col transition-all duration-300 origin-bottom-left">
+            <div id="planner-overlay-lock" class="absolute inset-0 z-30 bg-gray-900/95 backdrop-blur-md flex flex-col items-center justify-center text-center p-6">
+                <i class="fas fa-lock text-pink-500 text-2xl mb-4"></i>
+                <h3 class="text-white font-bold text-lg">Schedule Locked</h3>
+                <p class="text-gray-400 text-xs mb-4">Sign in to plan your routine.</p>
+                <button onclick="googleLogin()" class="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-semibold shadow-lg mt-4">Sign In</button>
+            </div>
+            <div id="planner-content" class="flex flex-col h-full relative hidden">
+                <div class="p-5 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                    <div><h3 class="font-bold text-green-100 text-lg flex items-center gap-2"><i class="fas fa-calendar-alt text-green-500"></i> Schedule</h3></div>
+                    <button onclick="togglePlannerWidget()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 scrollbar-hide bg-gray-900/50">
+                    <div class="grid grid-cols-8 gap-1 mb-2 text-center">
+                        <div class="text-[10px] text-gray-500 font-mono">Time</div>
+                        <div class="text-[10px] text-gray-300">Mon</div><div class="text-[10px] text-gray-300">Tue</div><div class="text-[10px] text-gray-300">Wed</div><div class="text-[10px] text-gray-300">Thu</div><div class="text-[10px] text-gray-300">Fri</div><div class="text-[10px] text-gray-300">Sat</div><div class="text-[10px] text-gray-300">Sun</div>
+                    </div>
+                    <div id="timetable-grid" class="space-y-1"></div>
+                </div>
+                <div class="p-6 bg-black/40 border-t border-white/10">
+                    <button onclick="autoFillSchedule()" class="w-full py-3 bg-green-900/30 border border-green-500/30 rounded-xl text-green-400 text-xs font-bold hover:bg-green-500 hover:text-black transition-all flex items-center justify-center gap-2 shadow-lg"><i class="fas fa-magic"></i> Auto-Fill Gaps with AI</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <audio id="comfort-audio-player" loop preload="auto">
+        <source src="YTDown.com_YouTube_Calm-Your-Anxiety_Media_zPyg4N7bcHM_008_128k.m4a" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        const N8N_WEBHOOK_URL = 'https://mavisszx.app.n8n.cloud/webhook/6256baba-f187-4251-9bc1-e89ccd5b5f8f';
+
+        // GLOBAL STATE
+        window.currentUserUID = 'guest';
+        let scheduleData = {};
+
+        // --- MUSIC PLAYER FUNCTIONS ---
+        const audioPlayer = document.getElementById('comfort-audio-player');
+        const sidebarMusicIconSlash = document.getElementById('sidebar-music-icon-slash');
+        const mobileMusicIconSlash = document.getElementById('mobile-music-icon-slash');
+        
+        audioPlayer.volume = 0.3; 
+        
+        window.startComfortMusic = () => {
+            audioPlayer.play().then(() => {
+                updateMusicIcons(false); 
+            }).catch(error => {
+                console.warn("Autoplay prevented. Waiting for user interaction.");
+                audioPlayer.muted = true; 
+                updateMusicIcons(true); 
+            });
+        };
+
+        function updateMusicIcons(isMuted) {
+            if (isMuted) {
+                if (sidebarMusicIconSlash) sidebarMusicIconSlash.classList.remove('hidden');
+                if (mobileMusicIconSlash) mobileMusicIconSlash.classList.remove('hidden');
+            } else {
+                if (sidebarMusicIconSlash) sidebarMusicIconSlash.classList.add('hidden');
+                if (mobileMusicIconSlash) mobileMusicIconSlash.classList.add('hidden');
+            }
+        }
+
+        window.toggleMute = () => {
+            audioPlayer.muted = !audioPlayer.muted;
+            if (!audioPlayer.muted) {
+                audioPlayer.play();
+                updateMusicIcons(false); 
+            } else {
+                updateMusicIcons(true); 
+            }
+        };
+
+        window.togglePlannerWidget = () => {
+            const w = document.getElementById('planner-widget');
+            w.classList.toggle('hidden');
+            if (!w.classList.contains('hidden')) renderTimetable();
+        }
+
+        // --- CHAT FUNCTIONS ---
+        const chatContainer = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            
+            // Mobile keyboard fix: scroll to bottom after sending
+            setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 100);
+
+            addBubble(text, 'user');
+            userInput.value = '';
+            const loadingId = addLoadingBubble();
+            
+            const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+            const currentSchedule = JSON.stringify(scheduleData);
+            const payloadWithContext = `User Question: "${text}" \n [SYSTEM_DATA_CONTEXT] Current Day: ${dayName}. Current Schedule: ${currentSchedule}. If schedule is empty, tell user to use Planner. The AI's response must use Markdown bold (e.g., **time**) for important details.`;
+
+            try {
+                const response = await fetch(N8N_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatInput: payloadWithContext }) });
+                const data = await response.json();
+                document.getElementById(loadingId)?.remove();
+                
+                let reply = data.output || "I'm thinking...";
+                if(reply.includes('[SYSTEM_DATA_CONTEXT]')) reply = reply.split('User Question:')[0]; 
+                addBubble(reply, 'bot'); 
+            } catch (error) {
+                document.getElementById(loadingId)?.remove();
+                console.error("Chat Error:", error); 
+                addBubble("Connection Error or Invalid Response.", 'bot');
+            }
+        }
+
+        function addBubble(text, sender) {
+            text = text ? text.trim() : "";
+            const div = document.createElement('div');
+            div.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'} chat-bubble`;
+            
+            const bubbleStyle = sender === 'user' 
+                ? 'bg-blue-600 text-white rounded-br-none' 
+                : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700 bot-text-area';
+            
+            let mediaHTML = '';
+            let imgUrl = null;
+
+            const markdownMatch = text.match(/!\[.*?\]\((.*?)\)/);
+            const rawLinkMatch = text.match(/(https?:\/\/.*\.(?:gif|png|jpg|jpeg|webp))/i);
+
+            if (markdownMatch) {
+                imgUrl = markdownMatch[1];
+                text = text.replace(markdownMatch[0], '').trim();
+            } else if (rawLinkMatch) {
+                imgUrl = rawLinkMatch[1];
+                text = text.replace(rawLinkMatch[0], '').trim();
+            }
+
+            if (imgUrl) {
+                mediaHTML = `
+                    <div class="mt-3 mb-1">
+                        <img src="${imgUrl}" class="rounded-xl max-h-40 w-auto border-2 border-pink-500/50 shadow-lg hover:scale-105 transition-transform duration-300 block">
+                    </div>
+                `;
+            }
+
+            if (sender === 'bot') {
+                text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            }
+
+            let contentHTML = `
+                <div class="${bubbleStyle} rounded-2xl py-3 px-5 max-w-[85%] shadow-md text-sm leading-relaxed flex flex-col">
+                    <span>${text}</span>
+                    ${mediaHTML}
+                </div>
+            `;
+            
+            div.innerHTML = contentHTML;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addLoadingBubble() {
+            const div = document.createElement('div');
+            div.id = 'loading-' + Date.now();
+            div.className = 'flex justify-start chat-bubble';
+            div.innerHTML = `<div class="bg-gray-800 rounded-2xl rounded-bl-none py-4 px-5 shadow-md border border-gray-700 flex gap-1"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div.id;
+        }
+
+        // --- BREATHE WIDGET ---
+        let breatheTimeouts = [];
+        window.toggleBreatheWidget = () => {
+            const w = document.getElementById('breathe-widget');
+            w.classList.toggle('hidden');
+            if (!w.classList.contains('hidden')) startBreathing(); else stopBreathing();
+        };
+
+        function startBreathing() {
+            const text = document.getElementById('breath-text');
+            const circle = document.getElementById('breath-circle');
+            text.innerText = "Get Ready...";
+            circle.style.transform = "scale(0.5)";
+            breatheTimeouts.forEach(clearTimeout);
+            breatheTimeouts = [];
+            function runCycle() {
+                text.innerText = "INHALE (4s)"; circle.className = "absolute inset-0 bg-blue-500/20 rounded-full breath-inhale";
+                breatheTimeouts.push(setTimeout(() => {
+                    text.innerText = "HOLD (7s)"; circle.className = "absolute inset-0 bg-blue-500/20 rounded-full breath-hold";
+                    breatheTimeouts.push(setTimeout(() => {
+                        text.innerText = "EXHALE (8s)"; circle.className = "absolute inset-0 bg-blue-500/20 rounded-full breath-exhale";
+                        breatheTimeouts.push(setTimeout(runCycle, 8000));
+                    }, 7000));
+                }, 4000));
+            }
+            runCycle();
+        }
+
+        function stopBreathing() {
+            breatheTimeouts.forEach(clearTimeout);
+            breatheTimeouts = [];
+            document.getElementById('breath-circle').className = "absolute inset-0 bg-blue-500/20 rounded-full scale-50 transition-transform";
+        }
+
+        // --- TIMETABLE WIDGET ---
+        const timeSlots = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
+        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+        window.loadUserSchedule = () => {
+            const key = `hikari_timetable_${window.currentUserUID}`;
+            scheduleData = JSON.parse(localStorage.getItem(key)) || {};
+            if (!document.getElementById('planner-widget').classList.contains('hidden')) renderTimetable();
+        };
+
+        function renderTimetable() {
+            const grid = document.getElementById('timetable-grid');
+            grid.innerHTML = '';
+            timeSlots.forEach(time => {
+                const row = document.createElement('div'); row.className = "grid grid-cols-8 gap-1 h-16";
+                const timeLabel = document.createElement('div'); timeLabel.className = "text-[10px] text-gray-500 font-mono flex items-start justify-center pt-1"; timeLabel.innerText = time; row.appendChild(timeLabel);
+                days.forEach(day => {
+                    const slotId = `${day}-${time}`;
+                    const data = scheduleData[slotId];
+                    const cell = document.createElement('div');
+                    cell.className = `rounded-lg border cursor-pointer transition-all p-1 flex flex-col justify-center items-center text-center overflow-hidden ${data ? 'bg-green-900/40 border-green-500/50 hover:bg-green-900/60' : 'bg-white/5 border-white/5 hover:bg-white/10'}`;
+                    cell.onclick = () => openTimetableModal(slotId);
+                    if (data) cell.innerHTML = `<div class="text-[9px] font-bold text-green-300 leading-tight">${data.course}</div><div class="text-[8px] text-green-500/70">${data.venue}</div>`;
+                    else cell.innerHTML = `<i class="fas fa-plus text-[8px] text-gray-600 opacity-0 group-hover:opacity-100"></i>`;
+                    row.appendChild(cell);
+                });
+                grid.appendChild(row);
+            });
+        }
+
+        window.openTimetableModal = (slotId) => {
+            document.getElementById('slot-id').value = slotId;
+            const data = scheduleData[slotId];
+            const courseName = data ? data.course.replace(/\*\*(.*?)\*\*/g, '$1') : '';
+            document.getElementById('course-name').value = courseName;
+            document.getElementById('course-lecturer').value = data ? data.lecturer : '';
+            document.getElementById('course-venue').value = data ? data.venue : '';
+            document.getElementById('timetable-modal').classList.remove('hidden');
+        }
+
+        window.closeTimetableModal = () => document.getElementById('timetable-modal').classList.add('hidden');
+
+        window.saveTimetableSlot = () => {
+            const id = document.getElementById('slot-id').value;
+            let course = document.getElementById('course-name').value;
+            const lecturer = document.getElementById('course-lecturer').value;
+            const venue = document.getElementById('course-venue').value;
+            if (course && !course.startsWith('**') && !course.endsWith('**')) {
+                course = `**${course}**`;
+            }
+            if(course) {
+                scheduleData[id] = { course, lecturer, venue };
+                localStorage.setItem(`hikari_timetable_${window.currentUserUID}`, JSON.stringify(scheduleData));
+                renderTimetable();
+                closeTimetableModal();
+            }
+        }
+
+        window.deleteTimetableSlot = () => {
+            const id = document.getElementById('slot-id').value;
+            delete scheduleData[id];
+            localStorage.setItem(`hikari_timetable_${window.currentUserUID}`, JSON.stringify(scheduleData));
+            renderTimetable();
+            closeTimetableModal();
+        }
+
+        window.autoFillSchedule = async () => {
+            const btn = document.querySelector('#planner-widget button i.fa-magic').parentNode;
+            const originalText = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Designing Routine...`;
+            
+            const currentScheduleJSON = JSON.stringify(scheduleData);
+            const aiPrompt = `Here is my current fixed schedule: ${currentScheduleJSON}. Please generate a JSON Array to fill the empty slots based on healthy student habits (e.g., study, wellness, breaks). The IDs for empty slots look like "Mon-08:00", "Tue-10:00", etc. For the "course" field, always enclose the main activity name in Markdown bold (**Activity Name**). Return JSON ONLY. Format: [{"id": "Day-Time", "course": "**Activity Name**", "venue": "Location", "lecturer": "Category"}]`;
+
+            try {
+                const response = await fetch(N8N_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatInput: aiPrompt }) });
+                const data = await response.json();
+                let cleanJson = data.output;
+                if(cleanJson.includes('[')) { cleanJson = cleanJson.substring(cleanJson.indexOf('[')); cleanJson = cleanJson.substring(0, cleanJson.lastIndexOf(']') + 1); }
+                const newSlots = JSON.parse(cleanJson);
+                newSlots.forEach(slot => {
+                    if (!scheduleData[slot.id]) { scheduleData[slot.id] = { course: slot.course, lecturer: slot.lecturer, venue: slot.venue }; }
+                });
+                localStorage.setItem(`hikari_timetable_${window.currentUserUID}`, JSON.stringify(scheduleData));
+                renderTimetable();
+                alert("✨ Schedule optimized for mental wellness! Tap on the new slots to view details.");
+            } catch (error) {
+                console.error("AI Error:", error);
+                alert("AI couldn't generate the schedule. Check console.");
+            } finally {
+                btn.disabled = false; btn.innerHTML = originalText;
+            }
+        }
+    </script>
+</body>
+</html>
